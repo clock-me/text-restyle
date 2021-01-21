@@ -61,6 +61,7 @@ def move_batch_to_device(batch, device):
 
 def train_step(train_batch: tp.Dict[str, tp.Any],
                model: TransferModel,
+               device: torch.DeviceObjType,
                optimizer: torch.optim.Optimizer,
                sp: spm.SentencePieceProcessor,
                ae_coef: float,
@@ -71,7 +72,7 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
                                  word_drop_probability=word_drop_probability,
                                  k=k)
     train_batch = make_tensors(train_batch)
-
+    train_batch = move_batch_to_device(train_batch, device)
     with torch.no_grad():
         model.eval()
         train_batch['back_translated'] = make_tensor(
@@ -84,7 +85,7 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
                 2
             ),
             1, 2, 0
-        )
+        ).to(device)
         model.train()
     optimizer.zero_grad()
     ae_loss, bt_loss = get_losses(model, train_batch)
@@ -96,6 +97,7 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
 
 def eval_step(val_batch: tp.Dict[str, tp.Any],
               model: TransferModel,
+              device: torch.DeviceObjType,
               sp: spm.SentencePieceProcessor,
               ae_coef: float,
               bt_coef: float,
@@ -105,6 +107,7 @@ def eval_step(val_batch: tp.Dict[str, tp.Any],
                                word_drop_probability=word_drop_probability,
                                k=k)
     val_batch = make_tensors(val_batch)
+    val_batch = move_batch_to_device(val_batch, device)
     val_batch['back_translated'] = make_tensor(
         model.temperature_translate_batch(
             val_batch['ids'],
@@ -115,7 +118,7 @@ def eval_step(val_batch: tp.Dict[str, tp.Any],
             2
         ),
         1, 2, 0
-    )
+    ).to(device)
 
     ae_loss, bt_loss = get_losses(model, val_batch)
     loss = ae_coef * ae_loss + bt_coef * bt_loss
@@ -143,6 +146,7 @@ def train(model,
             train_batch = move_batch_to_device(train_batch, device)
             loss, ae_loss, bt_loss = train_step(train_batch,
                                                 model,
+                                                device,
                                                 optimizer,
                                                 sp,
                                                 ae_coef * min(
@@ -170,7 +174,7 @@ def train(model,
             total_bt_loss = 0.0
             for val_batch in tqdm(val_dataloader):
                 val_batch = move_batch_to_device(val_batch, device)
-                loss, ae_loss, bt_loss = eval_step(val_batch, model, sp, ae_coef, bt_coef,
+                loss, ae_loss, bt_loss = eval_step(val_batch, model, device, sp, ae_coef, bt_coef,
                                                    word_drop_probability, k)
                 total_loss += loss
                 total_ae_loss += total_ae_loss
