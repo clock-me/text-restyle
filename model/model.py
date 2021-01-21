@@ -65,7 +65,8 @@ class LstmEncoder(nn.Module):
         lengths_after_pooling = torch.ceil(lengths / self.pool_window_size).type(torch.int64)
 
         # creating attention mask
-        attn_mask = torch.arange(input_maxpooled.shape[0])[:, None] < lengths_after_pooling[None, :]
+        attn_mask = torch.arange(input_maxpooled.shape[0],
+                                 device=lengths_after_pooling.device)[:, None] < lengths_after_pooling[None, :]
 
         return input_maxpooled, attn_mask
 
