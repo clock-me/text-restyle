@@ -262,7 +262,7 @@ class TransferModel(nn.Module):
         generated_result = torch.stack(generated_result, dim=0)
         eos_token_mask = torch.eq(generated_result, eos_token).type(torch.int64)
         cms_mask = torch.eq(torch.cumsum(eos_token_mask, dim=0), 0).type(torch.int64)
-        lengths = cms_mask.sum(dim=0).sum(dim=0) + 1
+        lengths = cms_mask.sum(dim=0) + 1
         attn_mask = torch.less(torch.arange(generated_result.shape[0], device=generated_result.device)[:, None],
                                lengths[None, :])
         return generated_result, attn_mask
