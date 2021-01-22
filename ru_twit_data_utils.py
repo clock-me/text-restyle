@@ -25,7 +25,7 @@ def get_data(negative_filename, positive_filename) -> tp.Tuple[pd.DataFrame, pd.
 
     all_df = pd.concat([positive_df, negative_df])
     train_df, test_val_df = train_test_split(all_df, test_size=0.1)
-    test_df, val_df = train_test_split(all_df, test_size=0.5)
+    test_df, val_df = train_test_split(test_val_df, test_size=0.5)
 
     return train_df, test_df, val_df
 
