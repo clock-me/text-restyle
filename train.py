@@ -18,6 +18,7 @@ from utils import create_sp_processor
 from utils import make_tensor
 from utils import make_tensors
 from utils import write_lines_to_file
+from ru_twit_data_utils import get_data
 
 
 def make_log_html(source_text: str,
@@ -75,21 +76,18 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
                                  k=k)
     train_batch = make_tensors(train_batch)
     train_batch = move_batch_to_device(train_batch, device)
-    print(f"making batch takes {time() - start} seconds")
+    print(f"batch making {time() - start} seconds")
     start = time()
     with torch.no_grad():
         model.eval()
-        train_batch['back_translated'] = make_tensor(
-            model.temperature_translate_batch(
-                train_batch['ids'],
-                train_batch['ids_mask'],
-                torch.randint_like(train_batch['tonalty'], low=0, high=2),
-                1.0,
-                30,
-                2
-            ),
-            1, 2, 0
-        ).to(device)
+        train_batch['back_translated'], train_batch['back_translated_mask'] = model.temperature_translate_batch(
+            train_batch['ids'],
+            train_batch['ids_mask'],
+            torch.randint_like(train_batch['tonalty'], low=0, high=2),
+            1.0,
+            30,
+            2
+        )
         model.train()
     print(f"back translation takes {time() - start} seconds")
     start = time()
@@ -115,17 +113,14 @@ def eval_step(val_batch: tp.Dict[str, tp.Any],
                                k=k)
     val_batch = make_tensors(val_batch)
     val_batch = move_batch_to_device(val_batch, device)
-    val_batch['back_translated'] = make_tensor(
-        model.temperature_translate_batch(
+    val_batch['back_translated'], val_batch['back_translated_mask'] = model.temperature_translate_batch(
             val_batch['ids'],
             val_batch['ids_mask'],
             torch.randint_like(val_batch['tonalty'], low=0, high=2),
             1.0,
             30,
             2
-        ),
-        1, 2, 0
-    ).to(device)
+    )
 
     ae_loss, bt_loss = get_losses(model, val_batch)
     loss = ae_coef * ae_loss + bt_coef * bt_loss
@@ -240,18 +235,31 @@ def save_checkpoint(model: TransferModel,
 
 def main():
     parser = argparse.ArgumentParser(description="performs training")
-    parser.add_argument('path_to_config', type=str, help="path to config.yaml, where all hyper-parameters are stored")
-    parser.add_argument('path_to_train', type=str, help="path to train.csv")
-    parser.add_argument('path_to_val', type=str, help='path to val.csv')
-    parser.add_argument('path_to_test', type=str, help='path to test.csv')
-    parser.add_argument('--do_preprocess', action='store_true')
+    parser.add_argument('path_to_config',
+                        type=str,
+                        help="path to config.yaml, where all hyper-parameters are stored")
+    parser.add_argument('path_to_train',
+                        type=str,
+                        help="path to train.csv")
+    parser.add_argument('path_to_val',
+                        type=str,
+                        help='path to val.csv')
+    parser.add_argument('path_to_test',
+                        type=str,
+                        help='path to test.csv')
+    parser.add_argument('--do_preprocess',
+                        action='store_true')
     args = parser.parse_args()
     config = get_config(args.path_to_config)
     do_preprocess = args.do_preprocess
 
-    train_df = pd.read_csv(args.path_to_train, sep=';', )
-    val_df = pd.read_csv(args.path_to_val, sep=';')
-    test_df = pd.read_csv(args.path_to_test, sep=';')
+    # train_df = pd.read_csv(args.path_to_train,
+    #                        sep=';')
+    # val_df = pd.read_csv(args.path_to_val,
+    #                      sep=';')
+    # test_df = pd.read_csv(args.path_to_test,
+    #                       sep=';')
+    train_df, val_df, test_df = get_data("data/negative.csv", "data/positive.csv")
 
     if do_preprocess:
         print("Creating subword processor...")

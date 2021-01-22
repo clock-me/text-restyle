@@ -210,42 +210,62 @@ class TransferModel(nn.Module):
         sum_loss = sum_loss / num_non_pad_tokens
         return sum_loss
 
-    def temperature_decode_sample_(self,
-                                   enc_input: torch.Tensor,
-                                   attn_mask: torch.Tensor,
-                                   sos_embedding: torch.Tensor,
-                                   temperature: float,
-                                   max_steps: int,
-                                   eos_token: int) -> tp.List[int]:
+    def temperature_decode_batch_(self,
+                                  enc_input: torch.Tensor,
+                                  attn_mask: torch.Tensor,
+                                  sos_embedding: torch.Tensor,
+                                  temperature: float,
+                                  max_steps: int,
+                                  eos_token: int) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """
         Performs sampling-with-temperature decoding
-        :enc_input: torch tensor of shape [n_inp, 2 * hidden_size]
-        :sos_embedding: torch tensor of shape[hid_size]
+        :enc_input: Batch of encoded inputs.
+            torch tensor of shape [n_inp, batch_size, 2 * hidden_size]
+        :attn_mask: Attention mask.
+            False means that decoder must not attend to position.
+            torch tensor of shape [n_inp, batch_size]
+        :sos_embedding:
+            Start-of-sequence embeddings. Used for beginning of generation
+            torch tensor of shape[batch_size, hid_size]
+        :temperature: Temperature, applied to token classification logits
+        :max_steps: Maximum steps for generation
+        :eos_token: End of sequence token. Sequence in batch stops being generated if this token occurs.
+        :returns:
+            - torch tensor of shape [n_out, batch_size]
         """
-        dec_hid_state, dec_cell_state = sos_embedding[None, :], sos_embedding[None, :]  # shape[hid_size]
-        last_generated_token = sos_embedding[None, :]  # shape[1, hid_size]
+        dec_hid_state, dec_cell_state = sos_embedding, sos_embedding  # shape[batch_size, hid_size]
+        last_generated_token = sos_embedding  # shape[batch_size, hid_size]
+        eos_generations = torch.zeros(last_generated_token.shape[0], dtype=torch.bool)
+
         generated_result = []
         for step in range(max_steps):
-            attention_response, _ = self.attention(enc_input[:, None, :],
-                                                   attn_mask[:, None],
-                                                   dec_hid_state)  # shape [1, hid_size]
+            attention_response, _ = self.attention(enc_input,
+                                                   attn_mask,
+                                                   dec_hid_state)  # shape [batch_size, hid_size]
             token_embedding_and_attn = torch.cat((
                 attention_response,
                 last_generated_token
-            ), dim=1)  # shape[1, 2 * hid_size]
+            ), dim=1)  # shape[batch_size, 2 * hid_size]
             dec_hid_state, dec_cell_state = self.decoder_cell(token_embedding_and_attn,
                                                               (dec_hid_state, dec_cell_state))
 
             # ^-- shape[1, hid_size], shape[1, hid_size]
-            next_token_distr = self.out_linear(dec_hid_state).squeeze(0)  # shape[vocab_size]
+            next_token_distr = self.out_linear(dec_hid_state)  # shape[batch_size, vocab_size]
             # dividing next token_distribution by temperature
             next_token_distr = next_token_distr / temperature
             # softmax
-            next_token_distr = nn.functional.softmax(next_token_distr, dim=0)
-            generated_result.append(int(torch.multinomial(next_token_distr, 1).item()))
-            if generated_result[-1] == eos_token:
+            next_token_distr = nn.functional.softmax(next_token_distr, dim=1)
+            generated_result.append(torch.multinomial(next_token_distr, 1).squeeze(1))
+            eos_generations |= (generated_result == eos_token)
+            if torch.all(eos_generations):
                 break
-        return generated_result
+        generated_result = torch.stack(generated_result, dim=0)
+        eos_token_mask = torch.eq(generated_result, eos_token).type(torch.int64)
+        cms_mask = torch.eq(torch.cumsum(eos_token_mask, dim=0), 0).type(torch.int64)
+        lengths = cms_mask.sum(dim=0) + 1
+        attn_mask = torch.less(torch.arange(generated_result.shape[0], device=generated_result.device)[:, None],
+                               lengths[None, :])
+        return generated_result, attn_mask
 
     def temperature_translate_batch(self,
                                     input_text: torch.Tensor,
@@ -253,21 +273,12 @@ class TransferModel(nn.Module):
                                     style: torch.Tensor,
                                     temperature: float,
                                     max_steps: int,
-                                    eos_token: int) -> tp.List[tp.List[int]]:
+                                    eos_token: int) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """
         Performs greedy decoding of batch of samples.
         :input_text: torch tensor of shape[n_inp, batch_size]
         :style: torch tensor of shape[batch_size]
         """
-        batch_size = input_text.shape[1]
         enc_input, attn_mask = self.encoder(input_text, padding_mask)  # shape[n_inp, batch_size, 2 * hid_size]
         sos_embeddings = self.style_embeddings(style)  # shape[batch_size, hid_size]
-        result = []
-        for i in range(batch_size):
-            result.append(self.temperature_decode_sample_(enc_input[:, i, :],
-                                                          attn_mask[:, i],
-                                                          sos_embeddings[i],
-                                                          temperature,
-                                                          max_steps,
-                                                          eos_token))
-        return result
+        return self.temperature_decode_batch_(enc_input, attn_mask, sos_embeddings, temperature, max_steps, eos_token)
