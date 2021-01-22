@@ -33,8 +33,8 @@ def make_log_html(source_text: str,
         f"""
         <h2>Source text, style = {source_style}:</h2>
         <p>{source_text}</p>
-        <h2>Destination text, style = {dest_text}:</h2>
-        <p>{dest_style}</p>
+        <h2>Destination text, style = {dest_style}:</h2>
+        <p>{dest_text}</p>
         """
     )
 
@@ -132,7 +132,8 @@ def train(model,
           k,
           train_dataloader,
           val_dataloader,
-          log_every):
+          log_every,
+          experiment_name):
 
     global_train_step = 0
     for epoch in range(epochs):
@@ -174,7 +175,6 @@ def train(model,
                 total_loss += loss
                 total_ae_loss += total_ae_loss
                 total_bt_loss += total_bt_loss
-
             total_loss /= len(val_dataloader)
             total_ae_loss /= len(val_dataloader)
             total_bt_loss /= len(val_dataloader)
@@ -196,8 +196,10 @@ def train(model,
                                          source_tonalty,
                                          dest_tonalty)
             }, commit=False)
+            save_checkpoint(model, optimizer,
+                            exp_name=experiment_name,
+                            checkpoint_name='last_epoch.pt')
             model.train()
-        model.state_dict()
 
 
 def get_config(path_to_config):
@@ -213,11 +215,14 @@ def save_checkpoint(model: TransferModel,
                     optimizer: torch.optim.Optimizer,
                     exp_name: str,
                     checkpoint_name: str) -> str:
-    os.makedirs(os.path.join('checkpoints', exp_name))
+    try:
+        os.makedirs(os.path.join('checkpoints', exp_name))
+    except FileExistsError as e:
+        pass
     checkpoint_directory = os.path.join('checkpoints', exp_name)
-    shutil.copyfile('bpe.model', checkpoint_directory)
-    shutil.copyfile('bpe.vocab', checkpoint_directory)
-    shutil.copyfile('config.yaml', checkpoint_directory)
+    shutil.copyfile('bpe.model', os.path.join(checkpoint_directory, 'bpe.model'))
+    shutil.copyfile('bpe.vocab', os.path.join(checkpoint_directory, 'bpe.vocab'))
+    shutil.copyfile('config.yaml', os.path.join(checkpoint_directory, 'config.yaml'))
     torch.save({
         'model_state_dict': model.state_dict(),
         'opt_state_dict': optimizer.state_dict()
@@ -253,6 +258,9 @@ def main():
     # test_df = pd.read_csv(args.path_to_test,
     #                       sep=';')
     train_df, val_df, test_df = get_data("data/negative.csv", "data/positive.csv")
+    print(f"train size = {len(train_df)}")
+    print(f"val size = {len(val_df)}")
+    print(f"test size = {len(test_df)}")
 
     if do_preprocess:
         print("Creating subword processor...")
@@ -268,7 +276,6 @@ def main():
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'])
     data = create_datasets_and_loaders(train_df, val_df, test_df, config["batch_size"])
-    #  wandb.login()
     wandb.init(project="sandbox", name=config['experiment_name'])
 
     train(model,
@@ -283,10 +290,8 @@ def main():
           config["k"],
           data["train_dataloader"],
           data["val_dataloader"],
-          config["log_every"])
-    save_checkpoint(model, optimizer,
-                    exp_name=config['experiment_name'],
-                    checkpoint_name='last_epoch.pt')
+          config["log_every"],
+          config["experiment_name"])
 
 
 if __name__ == '__main__':
