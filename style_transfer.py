@@ -22,7 +22,9 @@ def get_style_transfer(model: TransferModel,
     batch_ids = make_tensor(batch_ids, 1, 2, 0)
 
     styles = torch.tensor(dest_styles, dtype=int)
-    translated_batch = model.temperature_translate_batch(batch_ids, batch_ids != 0, styles,
-                                                         temperature, max_steps, eos_token)
-    result = [sp.decode(item) for item in translated_batch]
+    translated_batch, pad_mask = model.temperature_translate_batch(batch_ids, batch_ids != 0, styles,
+                                                                   temperature, max_steps, eos_token)
+    translated_batch *= pad_mask
+
+    result = [sp.decode(item) for item in translated_batch.T.tolist()]
     return result
