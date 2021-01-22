@@ -19,9 +19,9 @@ def get_style_transfer(model: TransferModel,
     """
     model.eval()
     batch_ids = [sp.encode_as_ids(text) for text in preprocessed_batch]
-    batch_ids = make_tensor(batch_ids, 1, 2, 0)
+    batch_ids = make_tensor(batch_ids, 1, 2, 0).to(model.encoder.embedding.weight.device)
 
-    styles = torch.tensor(dest_styles, dtype=int)
+    styles = torch.tensor(dest_styles, dtype=int, device=model.encoder.embedding.weight.device)
     translated_batch, pad_mask = model.temperature_translate_batch(batch_ids, batch_ids != 0, styles,
                                                                    temperature, max_steps, eos_token)
     translated_batch *= pad_mask
