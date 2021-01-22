@@ -199,6 +199,9 @@ def train(model,
             save_checkpoint(model, optimizer,
                             exp_name=experiment_name,
                             checkpoint_name='last_epoch.pt')
+            save_checkpoint(model, optimizer,
+                            exp_name=experiment_name,
+                            checkpoint_name=f"epoch_{epoch}.pt")
             model.train()
 
 
@@ -214,15 +217,17 @@ def get_config(path_to_config):
 def save_checkpoint(model: TransferModel,
                     optimizer: torch.optim.Optimizer,
                     exp_name: str,
-                    checkpoint_name: str) -> str:
+                    checkpoint_name: str,
+                    copy_bpe_and_config: bool = False) -> str:
     try:
         os.makedirs(os.path.join('checkpoints', exp_name))
     except FileExistsError as e:
         pass
     checkpoint_directory = os.path.join('checkpoints', exp_name)
-    shutil.copyfile('bpe.model', os.path.join(checkpoint_directory, 'bpe.model'))
-    shutil.copyfile('bpe.vocab', os.path.join(checkpoint_directory, 'bpe.vocab'))
-    shutil.copyfile('config.yaml', os.path.join(checkpoint_directory, 'config.yaml'))
+    if copy_bpe_and_config:
+        shutil.copyfile('bpe.model', os.path.join(checkpoint_directory, 'bpe.model'))
+        shutil.copyfile('bpe.vocab', os.path.join(checkpoint_directory, 'bpe.vocab'))
+        shutil.copyfile('config.yaml', os.path.join(checkpoint_directory, 'config.yaml'))
     torch.save({
         'model_state_dict': model.state_dict(),
         'opt_state_dict': optimizer.state_dict()
@@ -277,7 +282,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'])
     data = create_datasets_and_loaders(train_df, val_df, test_df, config["batch_size"])
     wandb.init(project="sandbox", name=config['experiment_name'])
-
+    wandb.config = config
     train(model,
           device,
           config["epochs"],
