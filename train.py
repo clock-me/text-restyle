@@ -46,7 +46,7 @@ def get_losses(model, batch):
                     batch['ids_mask'],
                     batch['tonalty'])
     bt_loss = model(batch['back_translated'],
-                    batch['back_translated'] != 0,
+                    batch['back_translated_mask'],
                     batch['ids'],
                     batch['ids_mask'],
                     batch['tonalty'])
@@ -69,15 +69,11 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
                bt_coef: float,
                word_drop_probability: float,
                k: int):
-    from time import time
-    start = time()
     train_batch = add_batch_info(sp, train_batch,
                                  word_drop_probability=word_drop_probability,
                                  k=k)
     train_batch = make_tensors(train_batch)
     train_batch = move_batch_to_device(train_batch, device)
-    print(f"batch making {time() - start} seconds")
-    start = time()
     with torch.no_grad():
         model.eval()
         train_batch['back_translated'], train_batch['back_translated_mask'] = model.temperature_translate_batch(
@@ -89,14 +85,11 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
             2
         )
         model.train()
-    print(f"back translation takes {time() - start} seconds")
-    start = time()
     optimizer.zero_grad()
     ae_loss, bt_loss = get_losses(model, train_batch)
     loss = ae_coef * ae_loss + bt_coef * bt_loss
     loss.backward()
     optimizer.step()
-    print(f"forward and backward steps take {time() - start} seconds")
     return loss.item(), ae_loss.item(), bt_loss.item()
 
 
