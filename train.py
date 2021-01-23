@@ -264,8 +264,7 @@ def load_and_train(path_to_config, do_preprocess):
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'])
     data = create_datasets_and_loaders(train_df, val_df, test_df, config["batch_size"])
-    wandb.init(project="sandbox", name=config['experiment_name'])
-    wandb.config = config
+    wandb.init(project="sandbox", name=config['experiment_name'], config=config)
     train(model,
           device,
           config["epochs"],
