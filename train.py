@@ -81,7 +81,8 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
             train_batch['ids_mask'],
             torch.randint_like(train_batch['tonalty'], low=0, high=2),
             1.0,
-            30,
+            80,
+            1,
             2
         )
         model.train()
@@ -111,7 +112,8 @@ def eval_step(val_batch: tp.Dict[str, tp.Any],
             val_batch['ids_mask'],
             torch.randint_like(val_batch['tonalty'], low=0, high=2),
             1.0,
-            30,
+            80,
+            1,
             2
     )
 
@@ -152,6 +154,7 @@ def train(model,
                                                 bt_coef,
                                                 word_drop_probability,
                                                 k)
+
             global_train_step += 1
             if global_train_step % log_every == 0:
                 wandb.log({
@@ -257,7 +260,7 @@ def load_and_train(path_to_config, do_preprocess):
         sp = spm.SentencePieceProcessor(model_file='bpe.model')
     device = torch.device(config["device"])
 
-    model = TransferModel(config['batch_size'],
+    model = TransferModel(config['hid_size'],
                           config['pool_window_size'],
                           sp.vocab_size(),
                           config['num_styles'])
