@@ -60,14 +60,13 @@ class LstmEncoder(nn.Module):
         input_maxpooled = input_maxpooled.permute(2, 0, 1)  # shape[encoded_len, batch_size, 2 * hidden_size]
 
         # calculating old lengths for making attention mask
-        lengths = torch.sum(padding_mask, dim=0, dtype=int) # shape[batch_size]
+        lengths = torch.sum(padding_mask, dim=0, dtype=int)  # shape[batch_size]
         # calculating new lengths for making attention mask
-        lengths_after_pooling = torch.ceil(lengths / self.pool_window_size).type(torch.int64)
+        lengths_after_pooling = torch.ceil(torch.true_divide(lengths, self.pool_window_size)).type(torch.int64)
 
         # creating attention mask
         attn_mask = torch.arange(input_maxpooled.shape[0],
                                  device=lengths_after_pooling.device)[:, None] < lengths_after_pooling[None, :]
-
         return input_maxpooled, attn_mask
 
 
@@ -117,7 +116,7 @@ class Attention(nn.Module):
         # on padding positions logits should be small for not attending on them
         attn_logits = (attn_logits * enc_mask) - (~enc_mask) * 2e9
         attn_weights = nn.functional.softmax(attn_logits, dim=0)  # shape[n_enc, batch_size]
-        attn_response = torch.sum(enc_states * attn_weights[:, :, None], dim=0)  # shape[batch_size, enc_size]
+        attn_response = torch.sum(enc_states * attn_weights[:, :, None], dim=0)  # shape[batch_size, 2 ]
         return attn_response, attn_weights
 
 
@@ -191,6 +190,7 @@ class TransferModel(nn.Module):
         num_non_pad_tokens = 0
         for t in range(len(original_input) - 1):
             # predicting current token:
+            # attention_response = torch.sum(enc_crp_input, dim=0)
             attention_response, _ = self.attention(enc_crp_input,
                                                    attn_mask,
                                                    dec_hid_state)  # shape[batch_size, 2 * hid_size]
@@ -204,7 +204,7 @@ class TransferModel(nn.Module):
             next_token_distr = self.out_linear(dec_hid_state)  # shape[batch_size, vocab_size]
             # calculating loss
             loss = self.loss_func(next_token_distr, original_input[t + 1])  # shape[batch_size]
-            sum_loss = sum_loss + (loss * pad_mask[t + 1]).sum()
+            sum_loss += (loss * pad_mask[t + 1]).sum()
             num_non_pad_tokens += int(pad_mask[t + 1].sum().item())
 
         sum_loss = sum_loss / num_non_pad_tokens
@@ -216,6 +216,7 @@ class TransferModel(nn.Module):
                                   sos_embedding: torch.Tensor,
                                   temperature: float,
                                   max_steps: int,
+                                  sos_token: int,
                                   eos_token: int) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """
         Performs sampling-with-temperature decoding
@@ -234,10 +235,14 @@ class TransferModel(nn.Module):
             - torch tensor of shape [n_out, batch_size]
         """
         dec_hid_state, dec_cell_state = sos_embedding, sos_embedding  # shape[batch_size, hid_size]
+        batch_size = dec_hid_state.shape[0]
         last_generated_token = sos_embedding  # shape[batch_size, hid_size]
         eos_generations = torch.zeros(last_generated_token.shape[0], dtype=torch.bool)
 
-        generated_result = []
+        generated_result = [torch.ones(batch_size,
+                                       dtype=torch.int64,
+                                       device=last_generated_token.device) * sos_token
+                            ]
         for step in range(max_steps):
             attention_response, _ = self.attention(enc_input,
                                                    attn_mask,
@@ -259,12 +264,14 @@ class TransferModel(nn.Module):
             eos_generations |= (generated_result == eos_token)
             if torch.all(eos_generations):
                 break
+        if not torch.all(eos_generations):
+            generated_result.append((~eos_generations).type(torch.int64) * eos_token)
         generated_result = torch.stack(generated_result, dim=0)
         eos_token_mask = torch.eq(generated_result, eos_token).type(torch.int64)
         cms_mask = torch.eq(torch.cumsum(eos_token_mask, dim=0), 0).type(torch.int64)
         lengths = cms_mask.sum(dim=0) + 1
-        attn_mask = torch.less(torch.arange(generated_result.shape[0], device=generated_result.device)[:, None],
-                               lengths[None, :])
+        attn_mask = torch.arange(generated_result.shape[0], device=generated_result.device)[:, None] < lengths[None, :]
+        generated_result = generated_result * attn_mask
         return generated_result, attn_mask
 
     def temperature_translate_batch(self,
@@ -273,6 +280,7 @@ class TransferModel(nn.Module):
                                     style: torch.Tensor,
                                     temperature: float,
                                     max_steps: int,
+                                    sos_token: int,
                                     eos_token: int) -> tp.Tuple[torch.Tensor, torch.Tensor]:
         """
         Performs greedy decoding of batch of samples.
@@ -281,4 +289,5 @@ class TransferModel(nn.Module):
         """
         enc_input, attn_mask = self.encoder(input_text, padding_mask)  # shape[n_inp, batch_size, 2 * hid_size]
         sos_embeddings = self.style_embeddings(style)  # shape[batch_size, hid_size]
-        return self.temperature_decode_batch_(enc_input, attn_mask, sos_embeddings, temperature, max_steps, eos_token)
+        return self.temperature_decode_batch_(enc_input, attn_mask, sos_embeddings, temperature, max_steps, sos_token,
+                                              eos_token)
