@@ -173,8 +173,8 @@ def train(model,
                 loss, ae_loss, bt_loss = eval_step(val_batch, model, device, sp, ae_coef, bt_coef,
                                                    word_drop_probability, k)
                 total_loss += loss
-                total_ae_loss += total_ae_loss
-                total_bt_loss += total_bt_loss
+                total_ae_loss += ae_loss
+                total_bt_loss += bt_loss
             total_loss /= len(val_dataloader)
             total_ae_loss /= len(val_dataloader)
             total_bt_loss /= len(val_dataloader)
@@ -236,25 +236,8 @@ def save_checkpoint(model: TransferModel,
     return checkpoint_directory
 
 
-def main():
-    parser = argparse.ArgumentParser(description="performs training")
-    parser.add_argument('path_to_config',
-                        type=str,
-                        help="path to config.yaml, where all hyper-parameters are stored")
-    parser.add_argument('path_to_train',
-                        type=str,
-                        help="path to train.csv")
-    parser.add_argument('path_to_val',
-                        type=str,
-                        help='path to val.csv')
-    parser.add_argument('path_to_test',
-                        type=str,
-                        help='path to test.csv')
-    parser.add_argument('--do_preprocess',
-                        action='store_true')
-    args = parser.parse_args()
-    config = get_config(args.path_to_config)
-    do_preprocess = args.do_preprocess
+def load_and_train(path_to_config, do_preprocess):
+    config = get_config(path_to_config)
 
     # train_df = pd.read_csv(args.path_to_train,
     #                        sep=';')
@@ -297,6 +280,27 @@ def main():
           data["val_dataloader"],
           config["log_every"],
           config["experiment_name"])
+    return model
+
+
+def main():
+    parser = argparse.ArgumentParser(description="performs training")
+    parser.add_argument('path_to_config',
+                        type=str,
+                        help="path to config.yaml, where all hyper-parameters are stored")
+    parser.add_argument('path_to_train',
+                        type=str,
+                        help="path to train.csv")
+    parser.add_argument('path_to_val',
+                        type=str,
+                        help='path to val.csv')
+    parser.add_argument('path_to_test',
+                        type=str,
+                        help='path to test.csv')
+    parser.add_argument('--do_preprocess',
+                        action='store_true')
+    args = parser.parse_args()
+    return load_and_train(args.path_to_config, args.do_preprocess)
 
 
 if __name__ == '__main__':
