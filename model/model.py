@@ -262,7 +262,8 @@ class TransferModel(nn.Module):
             # softmax
             next_token_distr = nn.functional.softmax(next_token_distr, dim=1)
             generated_result.append(torch.multinomial(next_token_distr, 1).squeeze(1))
-            eos_generations |= (generated_result == eos_token)
+            eos_generations |= (generated_result[-1] == eos_token)
+            last_generated_token = self.encoder.embedding(generated_result[-1])
             if torch.all(eos_generations):
                 break
         if not torch.all(eos_generations):
