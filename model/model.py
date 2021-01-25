@@ -237,8 +237,9 @@ class TransferModel(nn.Module):
         dec_hid_state, dec_cell_state = sos_embedding, sos_embedding  # shape[batch_size, hid_size]
         batch_size = dec_hid_state.shape[0]
         last_generated_token = sos_embedding  # shape[batch_size, hid_size]
-        eos_generations = torch.zeros(last_generated_token.shape[0], dtype=torch.bool)
-
+        eos_generations = torch.zeros(last_generated_token.shape[0],
+                                      dtype=torch.bool,
+                                      device=last_generated_token.device)
         generated_result = [torch.ones(batch_size,
                                        dtype=torch.int64,
                                        device=last_generated_token.device) * sos_token
