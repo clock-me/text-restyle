@@ -68,7 +68,8 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
                ae_coef: float,
                bt_coef: float,
                word_drop_probability: float,
-               k: int):
+               k: int,
+               temperature: float):
     train_batch = add_batch_info(sp, train_batch,
                                  word_drop_probability=word_drop_probability,
                                  k=k)
@@ -80,7 +81,7 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
             train_batch['ids'],
             train_batch['ids_mask'],
             torch.randint_like(train_batch['tonalty'], low=0, high=2),
-            1.0,
+            temperature,
             80,
             1,
             2
@@ -101,20 +102,21 @@ def eval_step(val_batch: tp.Dict[str, tp.Any],
               ae_coef: float,
               bt_coef: float,
               word_drop_probability: float,
-              k: int):
+              k: int,
+              temperature: float):
     val_batch = add_batch_info(sp, val_batch,
                                word_drop_probability=word_drop_probability,
                                k=k)
     val_batch = make_tensors(val_batch)
     val_batch = move_batch_to_device(val_batch, device)
     val_batch['back_translated'], val_batch['back_translated_mask'] = model.temperature_translate_batch(
-            val_batch['ids'],
-            val_batch['ids_mask'],
-            torch.randint_like(val_batch['tonalty'], low=0, high=2),
-            1.0,
-            80,
-            1,
-            2
+        val_batch['ids'],
+        val_batch['ids_mask'],
+        torch.randint_like(val_batch['tonalty'], low=0, high=2),
+        temperature,
+        80,
+        1,
+        2
     )
 
     ae_loss, bt_loss = get_losses(model, val_batch)
@@ -136,7 +138,6 @@ def train(model,
           val_dataloader,
           log_every,
           experiment_name):
-
     global_train_step = 0
     for epoch in range(epochs):
         print(f"Training epoch number {epoch}")
@@ -147,13 +148,15 @@ def train(model,
                                                 device,
                                                 optimizer,
                                                 sp,
-                                                ae_coef * min(
-                                                    (steps_to_decrease_ae_coef - global_train_step) / steps_to_decrease_ae_coef,
-                                                    1.0
+                                                ae_coef * max(
+                                                    (steps_to_decrease_ae_coef - global_train_step) /
+                                                    steps_to_decrease_ae_coef,
+                                                    0.0
                                                 ),
                                                 bt_coef,
                                                 word_drop_probability,
-                                                k)
+                                                k,
+                                                min(0.001 + 0.5 * (global_train_step / steps_to_decrease_ae_coef), 0.5))
 
             global_train_step += 1
             if global_train_step % log_every == 0:
@@ -161,9 +164,10 @@ def train(model,
                     'train/loss': loss,
                     'train/ae_loss': ae_loss,
                     'train/bt_loss': bt_loss,
-                    'train/ae_coef': ae_coef * min(
-                        (steps_to_decrease_ae_coef - global_train_step) / steps_to_decrease_ae_coef, 1.0),
-                    'train/bt_coef': bt_coef
+                    'train/ae_coef': ae_coef * max(
+                        (steps_to_decrease_ae_coef - global_train_step) / steps_to_decrease_ae_coef, 0.0),
+                    'train/bt_coef': bt_coef,
+                    'train/temperature': min(0.001 + 0.5 * (global_train_step / steps_to_decrease_ae_coef), 0.5)
                 }, commit=True)
         print(f"Evaluating epoch number {epoch}")
         with torch.no_grad():
@@ -173,8 +177,15 @@ def train(model,
             total_bt_loss = 0.0
             for val_batch in tqdm(val_dataloader):
                 val_batch = move_batch_to_device(val_batch, device)
-                loss, ae_loss, bt_loss = eval_step(val_batch, model, device, sp, ae_coef, bt_coef,
-                                                   word_drop_probability, k)
+                loss, ae_loss, bt_loss = eval_step(val_batch, model, device, sp,
+                                                   ae_coef * max(
+                                                       (steps_to_decrease_ae_coef - global_train_step) /
+                                                       steps_to_decrease_ae_coef,
+                                                       0.0),
+                                                   bt_coef,
+                                                   word_drop_probability, k,
+                                                   min(0.001 + 0.5 * (global_train_step / steps_to_decrease_ae_coef),
+                                                       0.5))
                 total_loss += loss
                 total_ae_loss += ae_loss
                 total_bt_loss += bt_loss
