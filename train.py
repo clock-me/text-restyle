@@ -250,23 +250,26 @@ def save_checkpoint(model: TransferModel,
     return checkpoint_directory
 
 
-def load_and_train(path_to_config, do_preprocess):
+def load_and_train(path_to_config,
+                   path_to_train,
+                   path_to_val,
+                   path_to_test,
+                   do_preprocess):
     config = get_config(path_to_config)
 
-    # train_df = pd.read_csv(args.path_to_train,
-    #                        sep=';')
-    # val_df = pd.read_csv(args.path_to_val,
-    #                      sep=';')
-    # test_df = pd.read_csv(args.path_to_test,
-    #                       sep=';')
-    train_df, val_df, test_df = get_data("data/negative.csv", "data/positive.csv")
+    train_df = pd.read_csv(path_to_train,
+                           sep=';')
+    val_df = pd.read_csv(path_to_val,
+                         sep=';')
+    test_df = pd.read_csv(path_to_test,
+                          sep=';')
     print(f"train size = {len(train_df)}")
     print(f"val size = {len(val_df)}")
     print(f"test size = {len(test_df)}")
 
     if do_preprocess:
         print("Creating subword processor...")
-        sp = create_sp_processor(train_df['text'])
+        sp = create_sp_processor(train_df['text'], config["vocab_size"])
     else:
         sp = spm.SentencePieceProcessor(model_file='bpe.model')
     device = torch.device(config["device"])

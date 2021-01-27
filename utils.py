@@ -19,14 +19,15 @@ def write_lines_to_file(lines: tp.Iterable[str], filename: str) -> tp.NoReturn:
             fout.write(line + "\n")
 
 
-def create_sp_processor(lines: tp.Iterable[str]) -> spm.SentencePieceProcessor:
+def create_sp_processor(lines: tp.Iterable[str],
+                        vocab_size: int) -> spm.SentencePieceProcessor:
     """
     Trains and create sentencepiece processor
     """
     # write_lines_to_file(lines, 'train.txt')
     spm.SentencePieceTrainer.Train(input='train.txt',
                                    model_prefix='bpe',
-                                   vocab_size=30000,
+                                   vocab_size=vocab_size,
                                    pad_id=0,
                                    bos_id=1,
                                    eos_id=2,
