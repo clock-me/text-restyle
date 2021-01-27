@@ -1,16 +1,15 @@
-experiment_name: "sandbox"
-device: "cpu"
-batch_size: 32
-hid_size: 32
-epochs: 1
+experiment_name: "hid512-voc50k-40epoch"
+device: "cuda:0"
+batch_size: 64
+hid_size: 512
+epochs: 40
 word_drop_prob: 0.1
 k: 3
 ae_coef: 1.0
 bt_coef: 1.0
 lr: 0.0001
 pool_window_size: 5
-vocab_size: 30000
+vocab_size: 50000
 num_styles: 2
 log_every: 5
-steps_to_decrease_ae_coef: 300000
-
+steps_to_decrease_ae_coef: 120000
