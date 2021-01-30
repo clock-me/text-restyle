@@ -15,7 +15,7 @@ To run training one can use `train.py`:
 train.py [-h] [--do_preprocess]
          path_to_config path_to_train path_to_val path_to_test
 ```
-Where `do_preprocess` stands for "whether create files for subword tokenization or not". This flag must be raised in first run.
+Where `do_preprocess` stands for "whether create files for subword tokenization or not". This flag must be raised in the first run.
 
 ## TODO
 - [ ] Add testing utilities (Metrics such as self-bleu (which is arguably the worst in text-style-transfer), style accuraccy)
