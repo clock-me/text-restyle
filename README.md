@@ -1,7 +1,7 @@
 # text-restyle
 
 ## About
-This repo contains my implementation of paper [Multiple-Attribute Text Style Transfer](https://arxiv.org/abs/1811.00552). It was done completely by me, in short time and basically as a programming challenge, so it may contain _a lot of bugs_. If you found one, please feel free to contact me/open an issue.
+This repo contains my implementation of paper [Multiple-Attribute Text Style Transfer](https://arxiv.org/abs/1811.00552). It was done completely by me, in short time and basically as a programming challenge, so it may contain _a lot of bugs_. If you found one (and you probably will, if you try), please feel free to contact me/open an issue.
 
 ## Usage
 At first, clone the repo.
