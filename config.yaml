@@ -1,0 +1,15 @@
+experiment_name: "hid512-voc50k-40epoch"
+device: "cuda:0"
+batch_size: 64
+hid_size: 512
+epochs: 5
+word_drop_prob: 0.3
+k: 3
+ae_coef: 1.0
+bt_coef: 1.0
+lr: 0.0001
+pool_window_size: 5
+vocab_size: 7686
+num_styles: 2
+log_every: 5
+steps_to_decrease_ae_coef: 15000
