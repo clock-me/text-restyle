@@ -24,7 +24,7 @@ def create_sp_processor(lines: tp.Iterable[str],
     """
     Trains and create sentencepiece processor
     """
-    # write_lines_to_file(lines, 'train.txt')
+    write_lines_to_file(lines, 'train.txt')
     spm.SentencePieceTrainer.Train(input='train.txt',
                                    model_prefix='bpe',
                                    vocab_size=vocab_size,

@@ -44,12 +44,12 @@ def get_losses(model, batch):
                     batch['corrupted_ids_mask'],
                     batch['ids'],
                     batch['ids_mask'],
-                    batch['tonalty'])
+                    batch['style'])
     bt_loss = model(batch['back_translated'],
                     batch['back_translated_mask'],
                     batch['ids'],
                     batch['ids_mask'],
-                    batch['tonalty'])
+                    batch['style'])
     return ae_loss, bt_loss
 
 
@@ -80,7 +80,7 @@ def train_step(train_batch: tp.Dict[str, tp.Any],
         train_batch['back_translated'], train_batch['back_translated_mask'] = model.temperature_translate_batch(
             train_batch['ids'],
             train_batch['ids_mask'],
-            torch.randint_like(train_batch['tonalty'], low=0, high=2),
+            torch.randint_like(train_batch['style'], low=0, high=2),
             temperature,
             80,
             1,
@@ -112,7 +112,7 @@ def eval_step(val_batch: tp.Dict[str, tp.Any],
     val_batch['back_translated'], val_batch['back_translated_mask'] = model.temperature_translate_batch(
         val_batch['ids'],
         val_batch['ids_mask'],
-        torch.randint_like(val_batch['tonalty'], low=0, high=2),
+        torch.randint_like(val_batch['style'], low=0, high=2),
         temperature,
         80,
         1,
@@ -199,16 +199,16 @@ def train(model,
                 'test/bt_loss': total_bt_loss,
             }, commit=False)
             source_text = val_batch['text'][0]
-            source_tonalty = val_batch['tonalty'][0]
-            dest_tonalty = 1 - val_batch['tonalty'][0]
+            source_style = val_batch['style'][0]
+            dest_style = 1 - val_batch['style'][0]
             dest_text = get_style_transfer(model, sp,
                                            [source_text],
-                                           [dest_tonalty])[0]
+                                           [dest_style])[0]
             wandb.log({
                 'samples': make_log_html(source_text,
                                          dest_text,
-                                         source_tonalty,
-                                         dest_tonalty)
+                                         source_style,
+                                         dest_style)
             }, commit=False)
             save_checkpoint(model, optimizer,
                             exp_name=experiment_name,
@@ -258,11 +258,11 @@ def load_and_train(path_to_config,
     config = get_config(path_to_config)
 
     train_df = pd.read_csv(path_to_train,
-                           sep=';')
+                           sep='\t')
     val_df = pd.read_csv(path_to_val,
-                         sep=';')
+                         sep='\t')
     test_df = pd.read_csv(path_to_test,
-                          sep=';')
+                          sep='\t')
     print(f"train size = {len(train_df)}")
     print(f"val size = {len(val_df)}")
     print(f"test size = {len(test_df)}")
@@ -316,7 +316,11 @@ def main():
     parser.add_argument('--do_preprocess',
                         action='store_true')
     args = parser.parse_args()
-    return load_and_train(args.path_to_config, args.do_preprocess)
+    return load_and_train(args.path_to_config,
+                          args.path_to_train,
+                          args.path_to_val,
+                          args.path_to_test,
+                          args.do_preprocess)
 
 
 if __name__ == '__main__':
