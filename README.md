@@ -18,7 +18,7 @@ train.py [-h] [--do_preprocess]
 Where `do_preprocess` stands for "whether create files for subword tokenization or not". This flag must be raised in the first run.
 
 ## TODO
-- [ ] Add testing utilities (Metrics such as self-bleu (which is arguably the worst in text-style-transfer), style accuraccy)
+- [ ] Add testing utilities (Metrics such as self-bleu (which is arguably the worst in text-style-transfer), style accuracy)
 - [ ] Add complex style support (in this case, style is a vector, as in the paper)
 - [ ] Reproduce paper results
 
